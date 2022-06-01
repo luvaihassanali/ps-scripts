@@ -1,0 +1,101 @@
+name: $(BuildDefinitionName)-$(Date:yyyyMMdd).$(Rev:.r)
+
+trigger:
+- none
+
+pool:
+  name: pool
+
+jobs:
+- job: Template_Build
+  steps:
+  - checkout: self
+    persistCredentials: true
+
+  - powershell: |
+      Write-Host "Creating solutions directory..."
+      if(!(Test-Path "solutions")) {
+        New-Item "solutions" -ItemType "directory"
+      } else {
+        Remove-Item "solutions" -Force -Recurse
+        New-Item "solutions" -ItemType "directory"
+      }
+    displayName: 'Set up working directory'
+
+  - powershell: |
+      Write-Host "Starting Microsoft.Xrm.Data.Powershell module in new process..."
+      $psi = New-object System.Diagnostics.ProcessStartInfo
+      $psi.CreateNoWindow = $true
+      $psi.UseShellExecute = $false
+      $psi.RedirectStandardOutput = $true
+      $psi.RedirectStandardError = $true
+      $psi.FileName = "powershell.exe"
+      
+      $isOnPrem = "$env:OnPremises"
+      if ($isOnPrem -eq "true") {
+        $psi.Arguments = "-File `"$env:LibraryPath\module-helper.ps1`" -url `"$env:EnvironmentUrl`" -onPremises `"true`" -task `"export`" -solutionName `"$env:SolutionNames`" -solutionFilePath `"$(Build.SourcesDirectory)`" -username `"$env:AdminUsername`" -password `"$env:AdminPassword`" -Wait"
+      } else {
+        $psi.Arguments = "-File `"$env:LibraryPath\module-helper.ps1`" -url `"$env:EnvironmentUrl`" -onPremises `"false`" -task `"export`" -solutionName `"$env:SolutionNames`" -solutionFilePath `"$(Build.SourcesDirectory)`" -Wait"
+      }
+
+      Write-Host "Process arguments: " 
+      Write-Host $psi.Arguments
+      $process = New-Object System.Diagnostics.Process 
+      $process.StartInfo = $psi 
+      [void]$process.Start()
+      do
+      {
+         $process.StandardOutput.ReadLine()
+      }
+      while (!$process.HasExited)
+      Write-Host "Microsoft.Xrm.Data.Powershell module process exited"
+    env:
+      AdminUsername: $(adminUsername)
+      AdminPassword: $(adminPassword)
+      EnvironmentUrl: $(environmentUrl)
+      LibraryPath: $(libraryPath)
+      SolutionNames: $(solutionNames)
+      OnPremises: $(onPremises)
+    displayName: 'Export solutions from SOURCE (DEV) environment'
+    
+  - powershell: |
+      $solutionNames = Get-ChildItem -Path solutions -Name -File -Include *.zip
+      foreach ($solution in $solutionNames) {
+        $solutionFolder = $solution.Split(".")[0]
+        Write-Host "Extracting solution: $solution"
+        $path = "$env:LibraryPath\"
+        Start-Process $path"SolutionPackager\SolutionPackager.exe" -NoNewWindow -ArgumentList `
+         "/action: Extract", `
+         "/zipfile: solutions\$solution", `
+         "/folder: solutions\$solutionFolder"
+      }
+    env:
+      LibraryPath: $(libraryPath)
+    displayName: 'Extract (unpack) solutions for version control'
+
+  - powershell: |
+      Write-Host "Copying solution zip files to staging directory"
+      Copy-Item -Path solutions\* -Destination $(Build.ArtifactStagingDirectory) -Include *.zip
+      Write-Host "Deleting solution zip files from source directory"
+      Remove-Item solutions -Force -Recurse -Include *.zip
+    displayName: 'Copy build artifacts to publishing directory'
+  
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: Template
+    displayName: 'Publish build artifacts'
+
+  - powershell: |
+      $currDate = Get-Date -Format "yyyyMMdd"
+      Write-Host "Pushing changes to repository..."
+      git config --global user.email "$env:GitEmail"
+      git config --global user.name "$env:GitUsername"   
+      git add .
+      git commit -m "$env:GitCommitMessage ($(Build.DefinitionName)-Pipeline-$(Build.DefinitionVersion)-$currDate)"
+      git push origin HEAD:template
+    env:
+      GitCommitMessage: $(gitCommitMsg)
+      GitEmail: $(gitEmail)
+      GitUsername: $(gitUsername)
+    displayName: 'Push changes to source control'
