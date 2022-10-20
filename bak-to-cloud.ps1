@@ -66,5 +66,5 @@ foreach ($file in $files) {
     $counter = $counter + 1
 }
 
-Write-Host "Completed backup"
-Start-Sleep -s 2
+Write-Host "Completed backup. Press Enter to exit" -NoNewLine
+$UserInput = $Host.UI.ReadLine()
