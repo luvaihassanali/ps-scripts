@@ -8,9 +8,9 @@ $psi.FileName = "powershell.exe"
 Write-Host "Starting Microsoft.Xrm.Data.Powershell module in new process..."
 $isOnPrem = "$(onPremises)"
 if ($isOnPrem -eq "true") {
-  $psi.Arguments = "-File `"$(libraryPath)\module-helper.ps1`" -url `"$(environmentUrl)`" -onPremises `"true`" -task `"import`" -solutionFilePath `"$(Agent.ReleaseDirectory)\$(solutionFilePath)`" -username `"$(adminUsername)`" -password `"$(adminPassword)`" -Wait"
+  $psi.Arguments = "-File `"$(libraryPath)\module-helper.ps1`" -url `"$(environmentUrl)`" -onPremises `"true`" -task `"import`" -solutionFilePath `"$(Agent.ReleaseDirectory)\$(solutionFilePath)`" -solutionOrder `"$(solutionOrder)`" -username `"$(adminUsername)`" -password `"$(adminPassword)`" -Wait"
 } else {
-  $psi.Arguments = "-File `"$(libraryPath)\module-helper.ps1`" -url `"$(environmentUrl)`" -onPremises `"false`" -task `"import`" -solutionFilePath `"$(Agent.ReleaseDirectory)\$(solutionFilePath)`" -Wait"
+  $psi.Arguments = "-File `"$(libraryPath)\module-helper.ps1`" -url `"$(environmentUrl)`" -onPremises `"false`" -task `"import`" -solutionFilePath `"$(Agent.ReleaseDirectory)\$(solutionFilePath)`" -solutionOrder `"$(solutionOrder)`" -Wait"
 }
 
 Write-Host "Process arguments: "
@@ -23,37 +23,13 @@ do
    $process.StandardOutput.ReadLine()
 }
 while (!$process.HasExited)
-Write-Host "Microsoft.Xrm.Data.Powershell module process ended"
+$processOutput = $process.StandardError.ReadToEnd()
+$exitCode = $process.ExitCode
 
-### V1 ###
-<#
-Write-Host "Importing Microsoft.Xrm.Data.Powershell module..."
-$path = "$(libraryPath)/"
-Import-Module -Verbose -FullyQualifiedName $path"Microsoft.Xrm.Data.Powershell"
-
-# Increase timeout from default 2 minutes to 20
-Set-CrmConnectionTimeout -TimeoutInSeconds 1200
-$isOnPrem = "$(onPremises)"
-Write-Host "Is on-prem:" $isOnPrem
-if ($isOnPrem -eq "true") {
-    $crmConnection = Get-CrmConnection -Verbose -ConnectionString "AuthType=Office365;Username=$(adminUsername);Password=$(adminPassword);Url=$(environmentUrl)" -MaxCrmConnectionTimeOutMinutes 20
+if($exitCode -eq 0) {
+  Write-Host "SUCCESS: Microsoft.Xrm.Data.Powershell module process ended with no errors"
+  exit 0
 } else {
-    $crmConnection = Get-CrmConnection -Verbose -ConnectionString "AuthType=ClientSecret;Url=$(environmentUrl);ClientId=$(clientId);ClientSecret=$(clientSecret)" -MaxCrmConnectionTimeOutMinutes 20
+  Write-Host "##vso[task.logissue type=error]FAILURE: Microsoft.Xrm.Data.Powershell module process ended with errors: $processOutput"
+  exit 1
 }
-Write-Host "Connection established with TARGET environment:"
-$crmConnection
-
-# Solution File path = Source alias + Artifact name
-$solutionFilePath = "$(solutionFilePath)"
-$solutionNames = Get-ChildItem -Path $solutionFilePath -Name -File -Include *.zip
-Write-Host "Solutions to be imported: $solutionNames"
-
-# Import solutions into TARGET environment
-foreach ($solution in $solutionNames) {
-    Write-Host "Importing solution: $solution"
-    Import-CrmSolution -Verbose -conn $crmConnection -SolutionFilePath $solutionFilePath/$solution -MaxWaitTimeInSeconds 1200
-}
-
-Write-Host "Publishing all customizations..."
-Publish-CrmAllCustomization -Verbose -conn $crmConnection
-#>
