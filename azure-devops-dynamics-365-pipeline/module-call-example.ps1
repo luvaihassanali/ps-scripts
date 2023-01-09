@@ -20,7 +20,7 @@ if ($isOnPrem -eq "true") {
   if ($import -eq "true") {
     $psi.Arguments = "-File `"C:\Users\Username\agent-dir\libs\module-helper.ps1`" -url `"$url`" -onPremises `"true`" -task `"import`" -solutionFilePath `"${PSScriptRoot}`" -username `"email`" -password `"$pw`" -Wait"
   } else {
-    $psi.Arguments = "-File `"C:\Users\Username\agent-dir\libs\module-helper.ps1`" -url `"$url`" -onPremises `"true`" -task `"export`" -solutionName `"JLDTransfer`" -solutionFilePath `"${PSScriptRoot}`" -username `"email`" -password `"$pw`" -Wait"
+    $psi.Arguments = "-File `"C:\Users\Username\agent-dir\libs\module-helper.ps1`" -url `"$url`" -onPremises `"true`" -task `"export`" -solutionName `"Solution1,Solution2`" -solutionFilePath `"${PSScriptRoot}`" -username `"email`" -password `"$pw`" -Wait"
   }
 } else { # Cloud test 
   if ($import -eq "true") {
@@ -39,5 +39,13 @@ do
    $process.StandardOutput.ReadLine()
 }
 while (!$process.HasExited)
+$processOutput = $process.StandardError.ReadToEnd()
+$exitCode = $process.ExitCode
 
-Write-Host "Microsoft.Xrm.Data.Powershell module process ended"
+if($exitCode -eq 0) {
+  Write-Host "SUCCESS: Microsoft.Xrm.Data.Powershell module process ended with no errors"
+  exit 0
+} else {
+  Write-Host "##vso[task.logissue type=error]FAILURE: Microsoft.Xrm.Data.Powershell module process ended with errors: $processOutput"
+  exit 1
+}
