@@ -48,7 +48,16 @@ jobs:
          $process.StandardOutput.ReadLine()
       }
       while (!$process.HasExited)
-      Write-Host "Microsoft.Xrm.Data.Powershell module process exited"
+      $processOutput = $process.StandardError.ReadToEnd()
+      $exitCode = $process.ExitCode
+
+      if($exitCode -eq 0) {
+          Write-Host "SUCCESS: Microsoft.Xrm.Data.Powershell module process ended with no errors"
+          exit 0
+      } else {
+          Write-Host "##vso[task.logissue type=error]FAILURE: Microsoft.Xrm.Data.Powershell module process ended with errors: $processOutput"
+          exit 1
+      }
     env:
       AdminUsername: $(adminUsername)
       AdminPassword: $(adminPassword)
