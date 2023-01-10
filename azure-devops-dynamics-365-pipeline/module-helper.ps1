@@ -33,8 +33,9 @@ if ($task -eq "export") {
       $exportFlag = $true
     } 
     catch {
-        $host.ui.WriteErrorLine("!!! Export-CrmSolution operation has encountered an exception: $_ !!!")
-        exit 1
+      Write-Host "Exception: $_"
+      $host.ui.WriteErrorLine("!!! Export-CrmSolution operation has encountered an exception !!!")
+      exit 1
     }
   }
   if (!$exportFlag) {
@@ -66,7 +67,8 @@ if ($task -eq "import") {
               $asyncResult = Get-CrmRecord -conn $crmConnection -EntityLogicalName asyncoperation -Id $asyncId.AsyncJobId -Fields * 
             } 
             catch {
-              $host.ui.WriteErrorLine("!!! Get-CrmRecord operation has encountered an exception: $_ !!!")
+              Write-Host "Exception: $_"
+              $host.ui.WriteErrorLine("!!! Get-CrmRecord operation has encountered an exception !!!")
               exit 1
             }
 
@@ -87,11 +89,13 @@ if ($task -eq "import") {
               $xmlcontent = "<" + ($fMArr[1] -split ',', -1)[0].Trim()
               $xml = New-Object -TypeName System.Xml.XmlDocument
               $xml.LoadXml($xmlcontent)
-              $host.ui.WriteErrorLine("!!! Solution import failed !!!`n" + (Format-Xml $xml))
+              $xmlString = Format-XML $xml
+              Write-Host $xmlString
+              $host.ui.WriteErrorLine("!!! Solution import failed !!!")
               exit 1
             }
             
-            if ($completedOn) {          
+            if ($completedOn) {     
               $publishFlag = $true
               break;
             }
@@ -104,7 +108,8 @@ if ($task -eq "import") {
           }
         } 
         catch {
-          $host.ui.WriteErrorLine("!!! Import-CrmSolutionAsync operation has encountered an exception: $_ !!!")
+          Write-Host "Exception: $_"
+          $host.ui.WriteErrorLine("!!! Import-CrmSolutionAsync operation has encountered an exception !!!")
           exit 1
         }
       }
