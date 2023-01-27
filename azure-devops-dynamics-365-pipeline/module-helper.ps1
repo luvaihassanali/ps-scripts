@@ -84,7 +84,7 @@ if ($task -eq "import") {
             Write-Host "Friendly message:" $friendlyMsg
             Write-Host "-"
 
-            if ($friendlyMsg -and $friendlyMsg.Contains("FAILURE:")) {
+            if ($friendlyMsg -and $friendlyMsg.ToLower().Contains("failure")) {
               $fMArr = $friendlyMsg -split '<', 2
               $xmlcontent = "<" + ($fMArr[1] -split ',', -1)[0].Trim()
               $xml = New-Object -TypeName System.Xml.XmlDocument
