@@ -1,7 +1,7 @@
 param([string]$url="default",[string]$username="user", [string]$password="pass", [string]$solutionNames="", [string]$onPremises="true", [string]$task="export", [string]$solutionFilePath="path", [string]$solutionOrder="dependencyOrder")
 
 # https://github.com/seanmcne/Microsoft.Xrm.Data.PowerShell/blob/master/Microsoft.Xrm.Data.PowerShell/Microsoft.Xrm.Data.PowerShell.psm1
-Import-Module -FullyQualifiedName "***REMOVED***" # -Verbose
+Import-Module -FullyQualifiedName "$modulePath" # -Verbose
 
 function Format-XML ([xml]$xml, $indent=2)
 {
@@ -25,8 +25,8 @@ Write-Host "Connection established with TARGET environment:" $crmConnection.Conn
 if ($task -eq "export") {
   $slnNames = "$solutionNames".Split(',')
   Write-Host "Solutions to be exported: $slnNames"
+  $exportFlag = $false
   foreach ($solution in $slnNames) {
-    $exportFlag = $false
     Write-Host "Exporting solution: $solution to $solutionFilePath\solutions"
     try {
       $result = Export-CrmSolution -Verbose -conn $crmConnection -SolutionName $solution -SolutionFilePath "$solutionFilePath\solutions"
@@ -50,8 +50,8 @@ if ($task -eq "import") {
   $slnNames = Get-ChildItem -Path $solutionFilePath -Name -File -Include *.zip
   $slnOrder = $solutionOrder.Split(',')
   Write-Host "Solutions to be imported: $slnNames"
+  $publishFlag = $false
   foreach($solutionOrderName in $slnOrder) {
-    $publishFlag = $false
     foreach($solution in $slnNames) {
       $startTime = Get-Date
       if ($solutionOrderName -eq $solution.Split('_')[0]) {
@@ -115,7 +115,7 @@ if ($task -eq "import") {
       }
     }
   }
-  if ($publish) {
+  if ($publishFlag) {
     Write-Host "Publishing all customizations..."
     Publish-CrmAllCustomization -Verbose -conn $crmConnection
   }
