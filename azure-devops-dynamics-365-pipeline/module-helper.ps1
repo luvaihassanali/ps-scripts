@@ -16,9 +16,9 @@ function Format-XML ([xml]$xml, $indent=2)
 }
 
 if ($onPremises -eq "true") {
-  $crmConnection = Get-CrmConnection -ConnectionString "AuthType=Office365;Username=$username;Password=$password;Url=$url" -MaxCrmConnectionTimeOutMinutes 20 #-Verbose
+  $crmConnection = Get-CrmConnection -ConnectionString "AuthType=Office365;Username=$username;Password=$password;Url=$url" -MaxCrmConnectionTimeOutMinutes 60 #-Verbose
 } else {
-  $crmConnection = Get-CrmConnection -ConnectionString "AuthType=ClientSecret;Url=$url;ClientId=$clientId;ClientSecret=$clientSecret" -MaxCrmConnectionTimeOutMinutes 20 #-Verbose
+  $crmConnection = Get-CrmConnection -ConnectionString "AuthType=ClientSecret;Url=$url;ClientId=$clientId;ClientSecret=$clientSecret" -MaxCrmConnectionTimeOutMinutes 60 #-Verbose
 }
 Write-Host "Connection established with TARGET environment:" $crmConnection.ConnectedOrgFriendlyName
 
@@ -49,7 +49,7 @@ if ($task -eq "import") {
   $pollingInterval = 5 #seconds
   $slnNames = Get-ChildItem -Path $solutionFilePath -Name -File -Include *.zip
   $slnOrder = $solutionOrder.Split(',')
-  Write-Host "Solutions to be imported: $slnNames"
+  Write-Host "Solutions to be imported: $slnOrder"
   $publishFlag = $false
   foreach($solutionOrderName in $slnOrder) {
     foreach($solution in $slnNames) {
@@ -95,6 +95,11 @@ if ($task -eq "import") {
               exit 1
             }
             
+            if ($friendlyMsg -and $friendlyMsg.ToLower().Contains("cannot start")) {     
+              $host.ui.WriteErrorLine("!!! Cannot start the requested operation [Import] because there is another [EntityCustomization] running at this moment. Please try re-deploying pipeline. !!!")
+              exit 1;
+            }
+
             if ($completedOn) {     
               $publishFlag = $true
               break;
@@ -118,6 +123,11 @@ if ($task -eq "import") {
   if ($publishFlag) {
     Write-Host "Publishing all customizations..."
     Publish-CrmAllCustomization -Verbose -conn $crmConnection
+  }
+  else {
+    Write-Host "Exception: $_"
+    $host.ui.WriteErrorLine("!!! No solutions were imported, check variable names !!!")
+    exit 1
   }
 }
 
