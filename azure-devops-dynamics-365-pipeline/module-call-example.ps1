@@ -1,7 +1,7 @@
 $isOnPrem= "false"
 $import = "true"
-$url = "" 
-$url2 = ""
+$cloudUrl = "" 
+$onPremUrl = ""
 $path = "$modulePath"
 $localpath = "C:\Users\Username\Desktop\temp"
 
@@ -19,15 +19,15 @@ if ($isOnPrem -eq "true") {
   $pw = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($adminPassword))
 
   if ($import -eq "true") {
-    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$url`" -onPremises `"true`" -task `"import`" -solutionFilePath `"$localpath`" -username `"<insert username>`" -password `"$pw`" -Wait"
+    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$cloudUrl`" -onPremises `"true`" -task `"import`" -solutionFilePath `"$localpath`" -username `"<insert username>`" -password `"$pw`" -Wait"
   } else {
-    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$url`" -onPremises `"true`" -task `"export`" -solutionName `"Solution1,Solution2`" -solutionFilePath `"$localpath`" -username `"<insert username>`" -password `"$pw`" -Wait"
+    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$cloudUrl`" -onPremises `"true`" -task `"export`" -solutionName `"Solution1,Solution2`" -solutionFilePath `"$localpath`" -username `"<insert username>`" -password `"$pw`" -Wait"
   }
 } else { # Cloud test 
   if ($import -eq "true") {
-    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$url2`" -onPremises `"false`" -task `"import`" -solutionFilePath `"$localpath`" -solutionOrder `"Solution1,Solution2`" -Wait"
+    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$onPremUrl`" -onPremises `"false`" -task `"import`" -solutionFilePath `"$localpath`" -solutionOrder `"Solution1,Solution2`" -Wait"
   } else {
-    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$url2`" -onPremises `"false`" -task `"export`" -solutionName `"Solution1,Solution2`" -solutionFilePath `"$localpath`" -Wait"
+    $psi.Arguments = "-File `"$path\module-helper.ps1`" -url `"$onPremUrl`" -onPremises `"false`" -task `"export`" -solutionName `"Solution1,Solution2`" -solutionFilePath `"$localpath`" -Wait"
   }
 }
 
