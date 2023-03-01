@@ -1,0 +1,173 @@
+name: $(BuildDefinitionName)-$(Date:yyyyMMdd).$(Rev:.r)
+
+trigger:
+- none
+
+pool:
+  name: POOL
+
+jobs:
+- job: Template_Build
+  steps:
+  - checkout: self
+    persistCredentials: true
+    displayName: "Check out"
+
+  - powershell: |
+      
+      # Recreate solutions directory to remove code if a solution is deleted from environment
+      Write-Host "Cleaning solution directory: "(Get-Item .).FullName
+      # If directory does not exist do not display error
+      Remove-Item "solutions" -Force -Recurse -ErrorAction SilentlyContinue
+      # Out-Null to prevent directory info from logging
+      New-Item "solutions" -ItemType "directory" | Out-Null
+
+      # Organizational policies on remote PowerShell execution prevents module from loading directly
+      # A new script will be started locally and output is redirected back to remote PS process 
+      Write-Host "Starting Microsoft.Xrm.Data.Powershell module in new process with parameters:"
+      $psi = New-object System.Diagnostics.ProcessStartInfo
+      
+      # If environment is on-premises collect administrator username and password from pipeline variables
+      # Provide parameters for xrm-module-helper.ps1 script to start Microsoft.Xrm.Data module
+      $isOnPrem = "$env:OnPremises"
+      if ($isOnPrem -eq "true")
+      {
+        $psi.Arguments = "-File `"$env:LibraryPath\xrm-module-helper.ps1`" -url `"$env:EnvironmentUrl`" -onPremises `"true`" -task `"export`" -solutionName `"$env:SolutionNames`" -solutionFilePath `"$(Build.SourcesDirectory)`" -username `"$env:AdminUsername`" -password `"$env:AdminPassword`" -Wait"
+      } 
+      else
+      {
+        $psi.Arguments = "-File `"$env:LibraryPath\xrm-module-helper.ps1`" -url `"$env:EnvironmentUrl`" -onPremises `"false`" -task `"export`" -solutionName `"$env:SolutionNames`" -solutionFilePath `"$(Build.SourcesDirectory)`" -Wait"
+      }
+      
+      # Display process arguments
+      $parameters = $psi.Arguments -split ' '
+      for ($i = 0; $i -lt $parameters.Length - 1; $i += 2)
+      {
+        Write-Host $parameters[$i] $parameters[$i + 1]
+      }
+
+      # Parameters for new script execution
+      $psi.CreateNoWindow = $true
+      $psi.UseShellExecute = $false
+      $psi.RedirectStandardOutput = $true
+      $psi.RedirectStandardError = $true
+      $psi.FileName = "powershell.exe"
+
+      # Start module-helper.ps1 process and read output till exit
+      $process = New-Object System.Diagnostics.Process
+      $process.StartInfo = $psi
+      [void]$process.Start()
+      # Read stdout and output if string is not empty
+      do
+      {
+        $stdout = $process.StandardOutput.ReadLine()
+        if (![string]::IsNullOrEmpty($stdout))
+        {
+          Write-Host $stdout 
+        }
+      }
+      while (!$process.HasExited)
+      $processOutput = $process.StandardError.ReadToEnd()
+      $exitCode = $process.ExitCode
+      
+      # If locally executed PS script does not return 0 then pipeline will fail
+      if ($exitCode -eq 0)
+      {
+        Write-Host "SUCCESS: Microsoft.Xrm.Data.Powershell module process ended with no errors"
+        exit 
+      }
+      else
+      {
+        Write-Host "##vso[task.logissue type=error]FAILURE: Microsoft.Xrm.Data.Powershell module process ended with errors: $processOutput"
+        exit 1
+      }
+    env:
+      AdminUsername: $(adminUsername)
+      AdminPassword: $(adminPassword)
+      EnvironmentUrl: $(environmentUrl)
+      LibraryPath: $(libraryPath)
+      SolutionNames: $(solutionNames)
+      OnPremises: $(onPremises)
+    displayName: 'Export'
+    
+  - powershell: |
+  
+      # Get solution names from pipeline variable
+      $solutionNames = Get-ChildItem -Path solutions -Name -File -Include *.zip
+      foreach ($solution in $solutionNames)
+      {
+        $solutionFolder = $solution.Split(".")[0]
+        Write-Host "Extracting solution: $solution"
+        # Start-Process -Wait SolutionPackager adds extra minutes to pipeline even though extraction take few seconds
+        # To workaround, create process object and read standard output
+        $path = "$env:LibraryPath\"
+        # Populate parameters for SolutionPackager process
+        $psi = New-object System.Diagnostics.ProcessStartInfo
+        $psi.CreateNoWindow = $true
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.FileName = $path + "SolutionPackager\SolutionPackager.exe"
+        $psi.Arguments =
+        "/action: Extract", `
+        "/zipfile: solutions\$solution", `
+        "/folder: solutions\$solutionFolder"
+        
+        # Start SolutionPackager.exe process and read output till exit
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $psi
+        [void]$process.Start()
+        # Read stdout and output if string is not empty
+        do
+        {
+          $stdout = $process.StandardOutput.ReadLine()
+          if (![string]::IsNullOrEmpty($stdout))
+          {
+            Write-Host $stdout
+          }
+        }
+        while (!$process.HasExited)
+        $processOutput = $process.StandardError.ReadToEnd()
+        $exitCode = $process.ExitCode
+        
+        # If process exit code != 0 pipeline will fail
+        if (-not ($exitCode -eq 0))
+        {
+          Write-Host "##vso[task.logissue type=error]FAILURE: SolutionPackager.exe process ended with errors: $processOutput"
+          exit 1
+        }
+      }
+      Write-Host "Copying solution zip files to staging directory"
+      Copy-Item -Path solutions\* -Destination $(Build.ArtifactStagingDirectory) -Include *.zip
+    env:
+      LibraryPath: $(libraryPath)
+    displayName: 'Unpack'
+  
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)
+      artifactName: Template
+    displayName: 'Publish'
+
+  - powershell: |
+  
+      Write-Host "Deleting solution zip files from source directory"
+      # Delete .zip file so they are not included in push to repository
+      Remove-Item solutions -Force -Recurse -Include *.zip -ErrorAction SilentlyContinue
+
+      # Configure git user with pipeline variables set
+      Write-Host "Pushing changes to repository"
+      git config --global user.email "$env:GitEmail"
+      git config --global user.name "$env:GitUsername"   
+      
+      # Push commit with added build name, version, and current date
+      git add .
+      $currDate = Get-Date -Format "yyyyMMdd"
+      git commit -m "$env:GitCommitMessage ($(Build.DefinitionName)-Pipeline-$(Build.DefinitionVersion)-$currDate)"
+      # Set branch name
+      git push origin HEAD:template
+    env:
+      GitCommitMessage: $(gitCommitMsg)
+      GitEmail: $(gitEmail)
+      GitUsername: $(gitUsername)
+    displayName: 'Check in'
