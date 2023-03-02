@@ -4,13 +4,21 @@
     https://social.technet.microsoft.com/Forums/windowsserver/en-US/c957ca7a-088e-40fb-8ce6-23da4d0753bb/progress-bar-for-copied-files-in-powershell?forum=winserverpowershell
 #>
 
-Function PadCounter($value) {
-    if ($value -lt 10) {
-        $paddedString = "00" + $value
-    } elseif ($value -ge 10 -and $value -lt 100) {
-        $paddedString = "0" + $value
+Function PadCounter($value, $max) {
+    if ($max -lt 100) {
+        if ($value -lt 10) {
+            $paddedString = "0" + $value
+        } else {
+            $paddedString = $value
+        }
     } else {
-        $paddedString = $value
+        if ($value -lt 10) {
+            $paddedString = "00" + $value
+        } elseif ($value -ge 10 -and $value -lt 100) {
+            $paddedString = "0" + $value
+        } else {
+            $paddedString = $value
+        }
     }
     return $paddedString
 }
@@ -26,7 +34,7 @@ Write-Host "Starting backup..."
 
 $counter = 1
 foreach ($oldFile in $oldFiles) {
-    $counterString = PadCounter $counter
+    $counterString = PadCounter $counter $oldFiles.Count
     $status = "Deleting files {0} on {1}: {2}" -f $counterString, $oldFiles.Count, $oldFile.Name
     Write-Progress -Activity "Backup Data A" $status -PercentComplete ($counter / $oldFiles.Count * 100)
     Remove-Item $oldFile.FullName -Force
