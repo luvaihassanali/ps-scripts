@@ -7,7 +7,7 @@ Activates, tracks, and renews Azure Administrator PIM roles. Uses AzureAD Previe
 Setup Azure DevOps pipeline to work with on-premises and in the cloud (Power Apps, including Portals) Dynamics 365 solutions using Microsoft.Xrm.Data.Powershell module (and PAC CLI for Portals).
 
 ### bak-to-cloud
-Backup script with progress bar. Deletes files in existing target location and copies source directory. Parses files to display accurate file count transfer.
+Backup script with progress bar with two parts. The first part deletes files in target location and second part copies specified source directory. Parses files to display accurate file deletion count and file copy count for each part of script execution.
 
 ### dynamics-multi-upload
 Script for Dynamics 365 on-premise solutions to avoid having to manually upload files. Created to facilitate upload of client written help guide (Word document converted to HTML page) with ~300 images.
